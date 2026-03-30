@@ -843,41 +843,30 @@ const MONTH_AR = {1:'يناير',2:'فبراير',3:'مارس',4:'أبريل',5:
 
 let allData = [];
 
-function loadData() {
+async function loadData() {
   const btn = document.getElementById('btnRefresh');
   btn.classList.add('loading');
   document.getElementById('overlay').classList.remove('hidden');
   document.getElementById('errBar').style.display = 'none';
 
-  // Remove any previous JSONP script tag
-  const old = document.getElementById('jsonp-script');
-  if (old) old.remove();
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, { redirect: 'follow' });
+    const text = await res.text();
 
-  // Timeout fallback after 12 seconds
-  const timeout = setTimeout(() => {
-    window._sheetCallback = null;
-    showErr('انتهى وقت الاتصال — تأكد من إعدادات الـ Apps Script.');
-    allData = buildSampleData();
-    init();
-    document.getElementById('overlay').classList.add('hidden');
-    btn.classList.remove('loading');
-  }, 12000);
+    // Strip JSONP wrapper if present: callback([...])
+    const clean = text.replace(/^[^(]+\(/, '').replace(/\);?\s*$/, '');
+    const rows  = JSON.parse(clean);
 
-  // JSONP callback — called by Apps Script response
-  window._sheetCallback = function(rows) {
-    clearTimeout(timeout);
-    window._sheetCallback = null;
     allData = parseRows(rows);
     init();
+  } catch(e) {
+    showErr('فشل تحميل البيانات — ' + e.message + '. جاري تحميل بيانات تجريبية.');
+    allData = buildSampleData();
+    init();
+  } finally {
     document.getElementById('overlay').classList.add('hidden');
     btn.classList.remove('loading');
-  };
-
-  // Inject JSONP script tag — NO onerror (causes false positives on redirects)
-  const script = document.createElement('script');
-  script.id  = 'jsonp-script';
-  script.src = APPS_SCRIPT_URL + '?callback=_sheetCallback';
-  document.head.appendChild(script);
+  }
 }
 
 function parseRows(rows) {
